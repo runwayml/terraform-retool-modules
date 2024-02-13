@@ -124,8 +124,8 @@ variable "rds_instance_engine_version" {
 }
 
 variable "rds_instance_auto_minor_version_upgrade" {
-  type = bool
-  default = true
+  type        = bool
+  default     = true
   description = "Whether to automatically upgrade the minor version of the Postgres RDS instance. Defaults to true."
 }
 
@@ -241,6 +241,12 @@ variable "alb_http_redirect" {
   type        = bool
   default     = false
   description = "Boolean for if http should redirect to https"
+}
+
+variable "alb_internal_lb" {
+  type        = bool
+  default     = false
+  description = "Boolean to specify the load balancer as an internal load balancer"
 }
 
 variable "cookie_insecure" {
