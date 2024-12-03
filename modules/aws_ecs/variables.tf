@@ -33,8 +33,8 @@ variable "ssh_key_name" {
 
 variable "instance_type" {
   type        = string
-  description = "ECS cluster instance type. Defaults to `t2.large`"
-  default     = "t2.large"
+  description = "ECS cluster instance type. Defaults to `t3.xlarge`"
+  default     = "t3.xlarge"
 }
 
 variable "max_instance_count" {
@@ -55,6 +55,18 @@ variable "deployment_name" {
   default     = "retool"
 }
 
+variable "service_discovery_namespace" {
+  type        = string
+  description = "Service discovery namespace DNS name. Default is based on deployment name (see locals.tf)."
+  default     = ""
+}
+
+variable "task_propagate_tags" {
+  type        = string
+  description = "Which resource to propagate tags from for ECS service tasks. Defaults to `TASK_DEFINITION`"
+  default     = "TASK_DEFINITION"
+}
+
 variable "retool_license_key" {
   type        = string
   description = "Retool license key"
@@ -63,8 +75,14 @@ variable "retool_license_key" {
 
 variable "ecs_retool_image" {
   type        = string
-  description = "Container image for desired Retool version. Defaults to `2.106.2`"
-  default     = "tryretool/backend:2.116.3"
+  description = "Container image for desired Retool version. Defaults to `3.28.7`"
+  default     = "tryretool/backend:3.28.7"
+}
+
+variable "ecs_code_executor_image" {
+  type        = string
+  description = "Container image for desired code_executor version. Defaults to `3.28.7`"
+  default     = "tryretool/code-executor-service:3.28.7"
 }
 
 variable "ecs_task_resource_map" {
@@ -89,8 +107,39 @@ variable "ecs_task_resource_map" {
       cpu    = 2048
       memory = 4096
     }
+
+    code_executor = {
+      cpu    = 2048
+      memory = 4096
+    }
   }
   description = "Amount of CPU and Memory provisioned for each task."
+}
+
+variable "temporal_ecs_task_resource_map" {
+  type = map(object({
+    cpu    = number
+    memory = number
+  }))
+  default = {
+    frontend = {
+      cpu    = 512
+      memory = 1024
+    },
+    history = {
+      cpu    = 512
+      memory = 2048
+    },
+    matching = {
+      cpu    = 512
+      memory = 1024
+    },
+    worker = {
+      cpu    = 512
+      memory = 1024
+    }
+  }
+  description = "Amount of CPU and Memory provisioned for each Temporal task."
 }
 
 variable "force_deployment" {
@@ -153,7 +202,44 @@ variable "rds_ca_cert_identifier" {
   description = "The identifier of the CA certificate for the DB instance"
 }
 
-variable "use_exising_temporal_cluster" {
+variable "rds_instance_storage_encrypted" {
+  type        = bool
+  default     = false
+  description = "Whether the RDS instance should have storage encrypted. Defaults to false."
+}
+
+variable "rds_allocated_storage" {
+  type        = number
+  default     = 80
+  description = "The allocated storage in gibibytes. Defaults to 80"
+}
+
+variable "rds_storage_type" {
+  type        = string
+  default     = "gp2"
+  description = "The storage volume type (standard, gp2, gp3, io1, or io2). Defaults to gp2"
+}
+
+variable "rds_storage_throughput" {
+  type        = number
+  default     = null
+  description = "The storage throughput (only valid when using rds_storage_type = gp3)"
+
+}
+
+variable "rds_iops" {
+  type        = number
+  default     = null
+  description = "The storage provisioned IOPS  (only valid when using rds_storage_type = io1, io2, or gp3)"
+}
+
+variable "rds_multi_az" {
+  type        = bool
+  default     = false
+  description = "Whether the RDS instance should have Multi-AZ enabled. Defaults to false."
+}
+
+variable "use_existing_temporal_cluster" {
   type        = bool
   default     = false
   description = "Whether to use an already existing Temporal Cluster. Defaults to false. Set to true and set temporal_cluster_config if you already have a Temporal cluster you want to use with Retool."
@@ -172,7 +258,7 @@ variable "launch_type" {
 # namescape: temporal namespace to use for Retool Workflows. We recommend this is only used by Retool.
 # If use_existing_temporal_cluster == true this should be config for currently existing cluster. 
 # If use_existing_temporal_cluster == false, you should use the defaults.
-# host: hostname for Temporal Frontend service
+# hostname: hostname for Temporal Frontend service
 # port: port for Temporal Frontend service
 # tls_enabled: Whether to use tls when connecting to Temporal Frontend. For mTLS, configure tls_crt and tls_key.
 # tls_crt: For mTLS only. Base64 encoded string of public tls certificate
@@ -180,7 +266,7 @@ variable "launch_type" {
 variable "temporal_cluster_config" {
   type = object({
     namespace   = string
-    host        = string
+    hostname    = string
     port        = string
     tls_enabled = bool
     tls_crt     = optional(string)
@@ -189,7 +275,7 @@ variable "temporal_cluster_config" {
 
   default = {
     namespace   = "workflows"
-    host        = "temporal.retoolsvc"
+    hostname    = "temporal"
     port        = "7233"
     tls_enabled = false
   }
@@ -219,10 +305,53 @@ variable "temporal_aurora_performance_insights_retention_period" {
   description = "The time in days to retain Performance Insights for Temporal Aurora. Defaults to 14."
 }
 
+variable "temporal_aurora_engine_version" {
+  type        = string
+  default     = "14.5"
+  description = "Engine version for Temporal Aurora. Defaults to 14.5."
+}
+
+variable "temporal_aurora_serverless_min_capacity" {
+  type        = number
+  default     = 0.5
+  description = "Minimum capacity for Temporal Aurora Serverless. Defaults to 0.5."
+}
+
+variable "temporal_aurora_serverless_max_capacity" {
+  type        = number
+  default     = 10
+  description = "Maximum capacity for Temporal Aurora Serverless. Defaults to 10."
+}
+
+variable "temporal_aurora_backup_retention_period" {
+  type        = number
+  default     = 7
+  description = "Number of days to retain backups for Temporal Aurora. Defaults to 7."
+}
+
+variable "temporal_aurora_preferred_backup_window" {
+  type        = string
+  default     = "03:00-04:00"
+  description = "Preferred backup window for Temporal Aurora. Defaults to 03:00-04:00."
+}
+
+variable "temporal_aurora_instances" {
+  type = any
+  default = {
+    one = {}
+  }
+}
+
 variable "workflows_enabled" {
   type        = bool
   default     = false
   description = "Whether to enable Workflows-specific containers, services, etc.. Defaults to false."
+}
+
+variable "code_executor_enabled" {
+  type        = bool
+  default     = false
+  description = "Whether to enable code_executor service to support Python execution. Defaults to false."
 }
 
 variable "log_retention_in_days" {
