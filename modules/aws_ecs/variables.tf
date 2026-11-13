@@ -608,3 +608,9 @@ variable "iam_partition" {
   description = "AWS Commercial accounts use 'aws'. AWS GovCloud accounts use 'aws-us-gov'"
   default     = "aws"
 }
+
+variable "rds_ingress_security_group_ids" {
+  type        = list(string)
+  default     = null
+  description = "Security groups, besides the Retool containers, allowed to reach the Retool RDS instance on 5432. null allows the whole VPC CIDR."
+}
