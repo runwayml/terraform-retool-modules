@@ -3,12 +3,18 @@ resource "aws_security_group" "rds" {
   description = "Retool database security group"
   vpc_id      = var.vpc_id
 
+  # null keeps the old rule (the whole VPC); a list allows the Retool containers
+  # plus the listed groups.
   ingress {
     description = "Retool ECS Postgres Inbound"
     from_port   = "5432"
     to_port     = "5432"
     protocol    = "tcp"
-    cidr_blocks = [data.aws_vpc.selected.cidr_block]
+    cidr_blocks = var.rds_ingress_security_group_ids == null ? [data.aws_vpc.selected.cidr_block] : []
+    security_groups = var.rds_ingress_security_group_ids == null ? [] : concat(
+      [aws_security_group.containers.id],
+      var.rds_ingress_security_group_ids,
+    )
   }
 
   # Allow all outbound - modify if necessary
